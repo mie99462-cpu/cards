@@ -5,4 +5,4 @@ python-multipart
 opencv-python-headless
 numpy
 Pillow
-rembg
+rembg[cpu]
