@@ -8,6 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        @font-face { font-family: 'GreatVibes'; src: url('/Fonts/GreatVibes-Regular.ttf'); }
+        @font-face { font-family: 'YatraOne'; src: url('/Fonts/YatraOne-Regular.ttf'); }
+        @font-face { font-family: 'AlexBrush'; src: url('/Fonts/AlexBrush-Regular.ttf'); }
+        
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f3f4f6; overflow: hidden; }
         
         /* Top Navigation Bar */
@@ -90,9 +95,9 @@
                 <span>
                     Resize
                     <div class="dropdown-menu">
-                        <div class="dropdown-item" onclick="resizeCanvas(1080, 1080)">Square (1080x1080)</div>
-                        <div class="dropdown-item" onclick="resizeCanvas(1080, 1920)">Story (1080x1920)</div>
-                        <div class="dropdown-item" onclick="resizeCanvas(1920, 1080)">Landscape (1920x1080)</div>
+                        <div class="dropdown-item" onclick="magicResize(1080, 1080)">Square (1080x1080)</div>
+                        <div class="dropdown-item" onclick="magicResize(1080, 1920)">Story (1080x1920)</div>
+                        <div class="dropdown-item" onclick="magicResize(1920, 1080)">Landscape (1920x1080)</div>
                         <div class="dropdown-item" onclick="customResize()">Custom Size...</div>
                     </div>
                 </span>
@@ -188,6 +193,9 @@
         <!-- Floating Toolbar for Selected Objects -->
         <div class="editor-toolbar" id="contextToolbar" style="display: none;">
             <input type="color" id="objColor" onchange="changeObjColor(this.value)" style="width: 30px; height: 30px; border: none; padding: 0; cursor: pointer;" title="Color">
+            <button class="tool-btn" onclick="applyMagicColor()" title="Smart Color Match" style="color: #8b3dff;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <button class="tool-btn" id="btnRewrite" onclick="magicRewrite()" title="Magic Rewrite" style="display: none; color: #00c4cc;"><i class="fa-solid fa-pen-nib"></i></button>
+            <button class="tool-btn" id="btnRemoveBg" onclick="removeBackground()" title="Remove Background" style="display: none; color: #e11d48;"><i class="fa-solid fa-scissors"></i></button>
             <div class="tool-divider"></div>
             <button class="tool-btn" onclick="deleteSelected()" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
             <button class="tool-btn" onclick="duplicateSelected()" title="Duplicate"><i class="fa-regular fa-copy"></i></button>
@@ -232,28 +240,97 @@
         let history = [];
         let historyIndex = -1;
 
-        // Load background image from URL parameter
+        // Load data or background image from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
-        // We need to strip the cache buster query parameter from the URL if it exists in the query string itself, 
-        // wait, the image param is `image=/output/variant_X.jpg?t=123`. URLSearchParams gets the whole thing.
         let imageUrl = urlParams.get('image'); 
-        if (!imageUrl) {
+        let dataUrl = urlParams.get('data');
+        if (!imageUrl && !dataUrl) {
             imageUrl = 'https://via.placeholder.com/800x1200?text=No+Image+Provided';
         }
 
-        fabric.Image.fromURL(imageUrl, function(img) {
-            // Setup canvas size based on image
-            const targetWidth = 800; // default editor width
-            const scale = targetWidth / img.width;
+        function autoFitCanvas() {
+            const wrapper = document.getElementById('canvasWrapper');
+            // Give some padding (e.g., 60px vertical, 40px horizontal)
+            const availableWidth = wrapper.clientWidth - 40;
+            const availableHeight = wrapper.clientHeight - 80;
             
-            canvas.setWidth(targetWidth);
-            canvas.setHeight(img.height * scale);
+            const scaleX = availableWidth / canvas.width;
+            const scaleY = availableHeight / canvas.height;
+            let bestScale = Math.min(scaleX, scaleY, 1); // Don't scale up more than 100%
             
-            img.scale(scale);
-            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-            
-            saveHistory(); // Initial state
-        });
+            setZoom(bestScale);
+        }
+
+        if (dataUrl) {
+            fetch(dataUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error("JSON not found");
+                    return response.json();
+                })
+                .then(data => {
+                    // Set canvas dimensions
+                    canvas.setWidth(data.width);
+                    canvas.setHeight(data.height);
+                    
+                    // Load Background Template
+                    fabric.Image.fromURL(data.template, function(img) {
+                        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+                        autoFitCanvas();
+                        
+                        // Load Stickers
+                        data.stickers.forEach(sticker => {
+                            fabric.Image.fromURL(sticker.path, function(sImg) {
+                                sImg.set({
+                                    left: sticker.x,
+                                    top: sticker.y,
+                                    scaleX: sticker.width / sImg.width,
+                                    scaleY: sticker.height / sImg.height
+                                });
+                                canvas.add(sImg);
+                            });
+                        });
+                        
+                        // Load Texts
+                        data.texts.forEach(txt => {
+                            let family = 'Inter';
+                            if (txt.font.includes('GreatVibes')) family = 'GreatVibes';
+                            if (txt.font.includes('YatraOne')) family = 'YatraOne';
+                            if (txt.font.includes('AlexBrush')) family = 'AlexBrush';
+
+                            const textObj = new fabric.IText(txt.text, {
+                                left: txt.x,
+                                top: txt.y,
+                                fontSize: txt.fontSize,
+                                fill: txt.color,
+                                fontFamily: family
+                            });
+                            canvas.add(textObj);
+                        });
+                        
+                        setTimeout(() => { canvas.renderAll(); saveHistory(); }, 500);
+                    });
+                })
+                .catch(err => {
+                    console.error("Failed to load JSON data:", err);
+                    loadFallbackImage(imageUrl);
+                });
+        } else {
+            loadFallbackImage(imageUrl);
+        }
+
+        function loadFallbackImage(url) {
+            fabric.Image.fromURL(url, function(img) {
+                // Keep original size
+                canvas.setWidth(img.width);
+                canvas.setHeight(img.height);
+                
+                canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+                autoFitCanvas();
+                saveHistory(); 
+            });
+        }
+        
+        window.addEventListener('resize', autoFitCanvas);
 
         // Tab Switching Logic
         function switchTab(tabId) {
@@ -268,7 +345,10 @@
             document.getElementById('tab-draw').style.display = 'none';
             
             // Show selected tab
-            document.getElementById('tab-' + tabId).style.display = 'block';
+            const targetTab = document.getElementById('tab-' + tabId);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+            }
             
             // Disable drawing mode if switching away from draw
             if(tabId !== 'draw') toggleDrawing(false);
@@ -341,11 +421,34 @@
         canvas.on('selection:cleared', hideToolbar);
         canvas.on('object:modified', saveHistory);
 
+        function rgbToHex(rgb) {
+            if (/^#[0-9A-F]{6}$/i.test(rgb)) return rgb;
+            const rgbArr = rgb.match(/^rgba?[\s+]?\([\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?/i);
+            return (rgbArr && rgbArr.length === 4) ? "#" +
+                ("0" + parseInt(rgbArr[1],10).toString(16)).slice(-2) +
+                ("0" + parseInt(rgbArr[2],10).toString(16)).slice(-2) +
+                ("0" + parseInt(rgbArr[3],10).toString(16)).slice(-2) : '#000000';
+        }
+
         function showToolbar(e) {
             document.getElementById('contextToolbar').style.display = 'flex';
             const activeObj = canvas.getActiveObject();
             if (activeObj && activeObj.fill) {
-                document.getElementById('objColor').value = activeObj.fill;
+                document.getElementById('objColor').value = rgbToHex(activeObj.fill);
+            }
+            
+            // Show rewrite button only for text
+            if (activeObj && (activeObj.type === 'text' || activeObj.type === 'i-text')) {
+                document.getElementById('btnRewrite').style.display = 'flex';
+            } else {
+                document.getElementById('btnRewrite').style.display = 'none';
+            }
+            
+            // Show remove bg button only for images
+            if (activeObj && activeObj.type === 'image') {
+                document.getElementById('btnRemoveBg').style.display = 'flex';
+            } else {
+                document.getElementById('btnRemoveBg').style.display = 'none';
             }
         }
 
@@ -361,6 +464,137 @@
                 canvas.renderAll();
                 saveHistory();
             }
+        }
+        
+        // Smart Color Matcher
+        function applyMagicColor() {
+            const activeObj = canvas.getActiveObject();
+            if (!activeObj || !activeObj.getBoundingRect) return;
+            
+            // Get bounding box relative to canvas
+            const bound = activeObj.getBoundingRect();
+            const ctx = canvas.getContext('2d');
+            
+            try {
+                // Get pixels directly underneath the object
+                const imgData = ctx.getImageData(bound.left, bound.top, bound.width, bound.height);
+                const data = imgData.data;
+                let r = 0, g = 0, b = 0;
+                let count = 0;
+                
+                // Sample every 4th pixel to save time
+                for(let i = 0; i < data.length; i += 16) {
+                    r += data[i];
+                    g += data[i+1];
+                    b += data[i+2];
+                    count++;
+                }
+                
+                r = r / count;
+                g = g / count;
+                b = b / count;
+                
+                // Calculate luminance
+                const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                
+                // Determine contrasting color
+                let newColor = '#ffffff'; // light
+                if (luminance > 128) {
+                    newColor = '#141414'; // dark
+                } else if (luminance < 50) {
+                    newColor = '#ffd700'; // gold for very dark backgrounds
+                }
+                
+                changeObjColor(newColor);
+                document.getElementById('objColor').value = newColor;
+            } catch (e) {
+                console.error("Magic Color failed due to CORS or off-canvas object", e);
+            }
+        }
+        
+        // Magic Rewrite
+        async function magicRewrite() {
+            const activeObj = canvas.getActiveObject();
+            if (!activeObj || !(activeObj.type === 'text' || activeObj.type === 'i-text')) return;
+            
+            const originalText = activeObj.text;
+            const originalBtnHtml = document.getElementById('btnRewrite').innerHTML;
+            document.getElementById('btnRewrite').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            try {
+                // Call our backend API
+                const response = await fetch('/api/magic-rewrite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: originalText })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.rewritten_text) {
+                        activeObj.set('text', data.rewritten_text);
+                        canvas.renderAll();
+                        saveHistory();
+                    }
+                } else {
+                    alert("Magic Rewrite failed.");
+                }
+            } catch(e) {
+                console.error(e);
+                alert("Could not connect to Magic Rewrite service.");
+            }
+            
+            document.getElementById('btnRewrite').innerHTML = originalBtnHtml;
+        }
+
+        // Smart Background Removal
+        async function removeBackground() {
+            const activeObj = canvas.getActiveObject();
+            if (!activeObj || activeObj.type !== 'image') return;
+            
+            const originalBtnHtml = document.getElementById('btnRemoveBg').innerHTML;
+            document.getElementById('btnRemoveBg').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            try {
+                // Get the base64 of the selected image
+                const imageBase64 = activeObj.toDataURL();
+                
+                const response = await fetch('/api/remove-bg', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_base64: imageBase64 })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.error) {
+                        alert("Error: " + data.error);
+                    } else if (data.image_base64) {
+                        // Load the new transparent image and replace the old one
+                        fabric.Image.fromURL(data.image_base64, function(newImg) {
+                            newImg.set({
+                                left: activeObj.left,
+                                top: activeObj.top,
+                                scaleX: activeObj.scaleX,
+                                scaleY: activeObj.scaleY,
+                                angle: activeObj.angle
+                            });
+                            canvas.remove(activeObj);
+                            canvas.add(newImg);
+                            canvas.setActiveObject(newImg);
+                            canvas.renderAll();
+                            saveHistory();
+                        });
+                    }
+                } else {
+                    alert("Failed to remove background.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Could not connect to background removal service.");
+            }
+            
+            document.getElementById('btnRemoveBg').innerHTML = originalBtnHtml;
         }
 
         function deleteSelected() {
@@ -513,12 +747,67 @@
             printWindow.document.close();
         }
 
-        // Resize Canvas
-        function resizeCanvas(width, height) {
-            canvas.setWidth(width);
-            canvas.setHeight(height);
-            // Re-center elements if desired, or just let them be
+        // Magic Resize Canvas
+        function magicResize(newWidth, newHeight) {
+            const oldWidth = canvas.width;
+            const oldHeight = canvas.height;
+            
+            // 1. Update Canvas Dimensions
+            canvas.setWidth(newWidth);
+            canvas.setHeight(newHeight);
+            
+            // 2. Scale Background Image to "Cover"
+            const bgImage = canvas.backgroundImage;
+            if (bgImage) {
+                const scaleX = newWidth / bgImage.width;
+                const scaleY = newHeight / bgImage.height;
+                const scale = Math.max(scaleX, scaleY); // Cover
+                
+                bgImage.set({
+                    scaleX: scale,
+                    scaleY: scale,
+                    originX: 'center',
+                    originY: 'center',
+                    left: newWidth / 2,
+                    top: newHeight / 2
+                });
+            }
+            
+            // 3. Smart Reflow of Elements
+            const objects = canvas.getObjects();
+            objects.forEach(obj => {
+                // If it's a Text object, re-center horizontally and scale vertically
+                if (obj.type === 'text' || obj.type === 'i-text') {
+                    // Keep relative vertical position
+                    const relativeY = obj.top / oldHeight;
+                    obj.set({
+                        top: relativeY * newHeight,
+                        left: newWidth / 2,
+                        originX: 'center'
+                    });
+                } 
+                // If it's an Image (Sticker)
+                else if (obj.type === 'image') {
+                    const relativeY = obj.top / oldHeight;
+                    const relativeX = obj.left / oldWidth;
+                    
+                    // Anchoring logic based on Y position
+                    if (relativeY < 0.3) {
+                        // Top element (like Ganesha) -> Keep near top, center horizontally
+                        obj.set({ top: obj.top, left: newWidth / 2, originX: 'center' });
+                    } else if (relativeY > 0.7) {
+                        // Bottom element (like Lover) -> Keep near bottom distance
+                        const distFromBottom = oldHeight - obj.top;
+                        obj.set({ top: newHeight - distFromBottom, left: newWidth / 2, originX: 'center' });
+                    } else {
+                        // Middle elements -> purely proportional
+                        obj.set({ top: relativeY * newHeight, left: relativeX * newWidth });
+                    }
+                }
+            });
+            
             canvas.renderAll();
+            autoFitCanvas(); // Auto zoom to fit the new size
             saveHistory();
         }
 
@@ -530,7 +819,7 @@
             if (height === null) return;
             
             if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
-                resizeCanvas(parseInt(width), parseInt(height));
+                magicResize(parseInt(width), parseInt(height));
             } else {
                 alert("Please enter valid numbers for dimensions.");
             }
