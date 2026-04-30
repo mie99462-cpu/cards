@@ -6,8 +6,9 @@ import glob
 from PIL import Image, ImageDraw, ImageFont, ImageStat
 import urllib.request
 
-# Font paths from local folder
-font_dir = r"c:\Users\us21m\Desktop\project\Fonts"
+# Font paths
+base_path = os.path.dirname(os.path.abspath(__file__))
+font_dir = os.path.join(base_path, "Fonts")
 cursive_font_path = os.path.join(font_dir, "GreatVibes-Regular.ttf")
 sanskrit_font_path = os.path.join(font_dir, "YatraOne-Regular.ttf")
 cinzel_font_path = sanskrit_font_path # fallback to YatraOne since Cinzel isn't there
@@ -19,11 +20,11 @@ def get_files(directory):
         files.extend(glob.glob(os.path.join(directory, ext)))
     return files
 
-base_dir = r"c:\Users\us21m\Desktop\project\dataset"
+base_dir = os.path.join(base_path, "dataset")
 template_dir = os.path.join(base_dir, "template")
 ganesha_dir = os.path.join(base_dir, "ganesha")
 lover_dir = os.path.join(base_dir, "lover")
-output_dir = r"c:\Users\us21m\Desktop\project\output"
+output_dir = os.path.join(base_path, "output")
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
