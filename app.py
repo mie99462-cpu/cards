@@ -11,10 +11,7 @@ import random
 import base64
 from io import BytesIO
 from PIL import Image
-try:
-    from rembg import remove
-except ImportError:
-    remove = None
+# rembg will be imported lazily inside the route to avoid blocking server startup
 
 app = FastAPI()
 
@@ -91,7 +88,9 @@ class RemoveBgRequest(BaseModel):
 
 @app.post("/api/remove-bg")
 async def remove_background(req: RemoveBgRequest):
-    if remove is None:
+    try:
+        from rembg import remove
+    except ImportError:
         return {"error": "rembg is not installed on the server"}
         
     try:
