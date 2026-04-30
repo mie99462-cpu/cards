@@ -31,7 +31,7 @@
         <div class="card">
             <img src="{{ variant }}" alt="Wedding Card Variant" ondblclick="openModal(this.src)" style="cursor: zoom-in;" title="Double click to enlarge">
             <div class="card-title">Variant {{ loop.index }}</div>
-            <a href="/editor?image={{ variant }}" class="edit-btn">Edit in Canva Clone</a>
+            <a href="/editor?image={{ variant }}&data={{ variant | replace('.jpg', '.json') }}" class="edit-btn">Edit in Canva Clone</a>
         </div>
         {% endfor %}
     </div>

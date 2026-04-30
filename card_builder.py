@@ -55,10 +55,10 @@ def paste_image_with_alpha(bg, fg_path, x, y, scale=1.0):
             y = bg.height - fg.height
             
         bg.paste(fg, (x, y), fg)
-        return fg.width, fg.height
+        return x, y, fg.width, fg.height
     except Exception as e:
         print(f"Error pasting {fg_path}: {e}")
-        return 0, 0
+        return x, y, 0, 0
 
 def find_best_placement(dist, w, h, region, element_w, element_h):
     mask = np.zeros_like(dist, dtype=np.uint8)
@@ -144,6 +144,14 @@ def run_pipeline(bride_name="Jane", groom_name="John", date="12/12/2026", venue=
             continue
         h, w = img_cv.shape[:2]
         
+        layout_state = {
+            "template": "/" + os.path.relpath(template_path, base_path).replace("\\", "/"),
+            "width": w,
+            "height": h,
+            "stickers": [],
+            "texts": []
+        }
+        
         # Stage 2: Edge Detection
         print("Stage 2: Edge Detection & Structure Analysis")
         gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
@@ -171,7 +179,12 @@ def run_pipeline(bride_name="Jane", groom_name="John", date="12/12/2026", venue=
         
         # Place Ganesha at top center but avoiding borders using distance map
         gx, gy = find_best_placement(dist, w, h, 'top', scaled_gw, scaled_gh)
-        paste_image_with_alpha(bg, ganesha_path, gx, gy, scale=ganesha_scale)
+        final_gx, final_gy, fgw, fgh = paste_image_with_alpha(bg, ganesha_path, gx, gy, scale=ganesha_scale)
+        if fgw > 0:
+            layout_state["stickers"].append({
+                "path": "/" + os.path.relpath(ganesha_path, base_path).replace("\\", "/"),
+                "x": final_gx, "y": final_gy, "width": fgw, "height": fgh
+            })
         
         # We might not place the lover sticker if it clutters the text, but let's place it at bottom if space exists
         # Make the lover sticker much larger to grab attention
@@ -182,7 +195,12 @@ def run_pipeline(bride_name="Jane", groom_name="John", date="12/12/2026", venue=
         
         place_lover = random.choice([True, False])
         if place_lover:
-            paste_image_with_alpha(bg, lover_path, lx, ly, scale=lover_scale)
+            final_lx, final_ly, flw, flh = paste_image_with_alpha(bg, lover_path, lx, ly, scale=lover_scale)
+            if flw > 0:
+                layout_state["stickers"].append({
+                    "path": "/" + os.path.relpath(lover_path, base_path).replace("\\", "/"),
+                    "x": final_lx, "y": final_ly, "width": flw, "height": flh
+                })
         else:
             ly = h - int(h * 0.05) # If no lover sticker, text can go lower
 
@@ -253,6 +271,20 @@ def run_pipeline(bride_name="Jane", groom_name="John", date="12/12/2026", venue=
                 tw, th = draw.textsize(text, font=font)
             tx = (w - tw) // 2
             draw.text((tx, y_pos), text, fill=color, font=font)
+            
+            # Save to layout state
+            color_hex = '#%02x%02x%02x' % color if isinstance(color, tuple) else color
+            layout_state["texts"].append({
+                "text": text,
+                "font": "/" + os.path.relpath(font_path, base_path).replace("\\", "/"),
+                "fontSize": size,
+                "color": color_hex,
+                "x": tx,
+                "y": y_pos,
+                "width": tw,
+                "height": th
+            })
+            
             return y_pos + th + int(h * 0.02 * font_mult)
 
         # Draw structured text
@@ -288,7 +320,13 @@ def run_pipeline(bride_name="Jane", groom_name="John", date="12/12/2026", venue=
         
         out_path = os.path.join(output_dir, f"variant_{variant}.jpg")
         bg.convert("RGB").save(out_path, quality=95)
-        print(f"Saved {out_path}")
+        
+        import json
+        json_path = os.path.join(output_dir, f"variant_{variant}.json")
+        with open(json_path, 'w') as f:
+            json.dump(layout_state, f)
+            
+        print(f"Saved {out_path} and JSON layout")
 
 if __name__ == '__main__':
     run_pipeline()

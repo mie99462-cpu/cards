@@ -10,12 +10,14 @@ import card_builder
 app = FastAPI()
 
 app.mount("/output", StaticFiles(directory="output"), name="output")
+app.mount("/dataset", StaticFiles(directory="dataset"), name="dataset")
+app.mount("/Fonts", StaticFiles(directory="Fonts"), name="Fonts")
 
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
-    return templates.TemplateResponse("form.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="form.html", context={"request": request})
 
 @app.post("/generate", response_class=HTMLResponse)
 async def generate_cards(
@@ -31,7 +33,7 @@ async def generate_cards(
     timestamp = int(time.time())
     variants = [f"/output/variant_{i}.jpg?t={timestamp}" for i in range(1, 6)]
     
-    return templates.TemplateResponse("results.html", {
+    return templates.TemplateResponse(request=request, name="results.html", context={
         "request": request, 
         "variants": variants,
         "bride_name": bride_name,
@@ -40,7 +42,7 @@ async def generate_cards(
 
 @app.get("/editor", response_class=HTMLResponse)
 async def editor_view(request: Request, image: str = ""):
-    return templates.TemplateResponse("editor.html", {"request": request, "image": image})
+    return templates.TemplateResponse(request=request, name="editor.html", context={"request": request, "image": image, "data": request.query_params.get("data", "")})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
