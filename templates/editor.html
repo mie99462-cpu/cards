@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PosterAI Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: #f3f4f6; overflow: hidden; }
+        
+        /* Top Navigation Bar */
+        .top-bar { height: 60px; background: linear-gradient(90deg, #00c4cc 0%, #8b3dff 100%); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10;}
+        .top-bar-left { display: flex; align-items: center; gap: 20px; }
+        .logo { font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+        .menu-items { display: flex; gap: 15px; font-size: 0.9rem; font-weight: 500; }
+        .menu-items span { cursor: pointer; padding: 5px 10px; border-radius: 4px; transition: background 0.2s; position: relative; }
+        .menu-items span:hover { background: rgba(255,255,255,0.2); }
+        .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: white; color: #333; min-width: 150px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 4px; padding: 5px 0; z-index: 100; flex-direction: column; }
+        .menu-items span:hover .dropdown-menu { display: flex; }
+        .dropdown-item { padding: 8px 15px; cursor: pointer; transition: background 0.2s; font-size: 0.85rem; }
+        .dropdown-item:hover { background: #f3f4f6; }
+        .top-bar-center { flex: 1; text-align: center; font-weight: 500; }
+        .top-bar-right { display: flex; align-items: center; gap: 15px; }
+        .btn-export { background: white; color: #8b3dff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn-export:hover { background: #f0f0f0; }
+
+        /* Main Workspace */
+        .workspace { display: flex; flex: 1; height: calc(100vh - 110px); }
+        
+        /* Left Sidebar (Thin) */
+        .sidebar { width: 72px; background: #18191b; color: #a1a1aa; display: flex; flex-direction: column; align-items: center; padding-top: 10px; z-index: 5; }
+        .nav-item { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 12px 0; cursor: pointer; font-size: 0.75rem; transition: 0.2s; gap: 5px;}
+        .nav-item:hover, .nav-item.active { color: white; background: #27272a; }
+        .nav-item i { font-size: 1.2rem; }
+
+        /* Left Panel (Expanded Options) */
+        .panel { width: 320px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 4; }
+        .panel-header { padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .panel-header h2 { font-size: 1.1rem; color: #111827; }
+        .panel-content { padding: 20px; overflow-y: auto; flex: 1; }
+        
+        /* Editor Controls Toolbar (floating above canvas) */
+        .editor-toolbar { position: absolute; top: 80px; left: 410px; right: 20px; height: 50px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); display: flex; align-items: center; padding: 0 15px; gap: 15px; z-index: 2; }
+        .tool-btn { background: none; border: none; font-size: 1rem; color: #4b5563; cursor: pointer; padding: 8px; border-radius: 4px; transition: 0.2s; display: flex; align-items: center; justify-content: center;}
+        .tool-btn:hover { background: #f3f4f6; color: #111827; }
+        .tool-divider { width: 1px; height: 24px; background: #e5e7eb; }
+
+        /* Canvas Container */
+        .canvas-container-wrapper { flex: 1; background: #f3f4f6; display: flex; justify-content: center; align-items: center; overflow: auto; position: relative; padding: 60px 20px 20px 20px; }
+        .canvas-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.1); transition: transform 0.2s ease-out; }
+
+        /* Bottom Bar */
+        .bottom-bar { height: 50px; background: white; border-top: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.85rem; color: #4b5563; z-index: 10;}
+        .zoom-controls { display: flex; align-items: center; gap: 10px; }
+        .zoom-slider { width: 100px; }
+
+        /* UI Elements inside Panel */
+        .search-box { width: 100%; padding: 10px 15px; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 15px; outline: none; }
+        .search-box:focus { border-color: #8b3dff; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 8px;}
+        .grid-item:hover { border-color: #8b3dff; background: #f3f0ff; }
+        .grid-item i { font-size: 1.5rem; color: #6b7280; }
+        
+        .add-text-btn { width: 100%; padding: 12px; background: #8b3dff; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 10px; transition: 0.2s;}
+        .add-text-btn:hover { background: #7a36e6; }
+        
+        .font-style { padding: 15px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 10px; cursor: pointer; text-align: center; }
+        .font-style.heading { font-size: 1.5rem; font-weight: 700; }
+        .font-style.subheading { font-size: 1.2rem; font-weight: 600; }
+        .font-style.body { font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation -->
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <div class="logo"><i class="fa-solid fa-wand-magic-sparkles"></i> PosterAI</div>
+            <div class="menu-items">
+                <span>
+                    File
+                    <div class="dropdown-menu">
+                        <div class="dropdown-item" onclick="downloadImage()">Save / Download</div>
+                        <div class="dropdown-item" onclick="printImage()">Print</div>
+                    </div>
+                </span>
+                <span>
+                    Resize
+                    <div class="dropdown-menu">
+                        <div class="dropdown-item" onclick="resizeCanvas(1080, 1080)">Square (1080x1080)</div>
+                        <div class="dropdown-item" onclick="resizeCanvas(1080, 1920)">Story (1080x1920)</div>
+                        <div class="dropdown-item" onclick="resizeCanvas(1920, 1080)">Landscape (1920x1080)</div>
+                        <div class="dropdown-item" onclick="customResize()">Custom Size...</div>
+                    </div>
+                </span>
+                <span onclick="undo()"><i class="fa-solid fa-rotate-left"></i></span>
+                <span onclick="redo()"><i class="fa-solid fa-rotate-right"></i></span>
+            </div>
+        </div>
+        <div class="top-bar-center">
+            Generated Card Design
+        </div>
+        <div class="top-bar-right">
+            <button class="btn-export" onclick="downloadImage()"><i class="fa-solid fa-download"></i> Download</button>
+            <button class="btn-export" style="background: white; color: #8b3dff;" onclick="printImage()"><i class="fa-solid fa-print"></i> Print</button>
+            <button class="btn-export" style="background: rgba(255,255,255,0.2); color: white;"><i class="fa-solid fa-share"></i> Share</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- Thin Navigation Sidebar -->
+        <div class="sidebar">
+            <div class="nav-item" onclick="switchTab('elements')"><i class="fa-solid fa-shapes"></i>Elements</div>
+            <div class="nav-item active" onclick="switchTab('text')"><i class="fa-solid fa-t"></i>Text</div>
+            <div class="nav-item" onclick="switchTab('uploads')"><i class="fa-solid fa-cloud-arrow-up"></i>Uploads</div>
+            <div class="nav-item" onclick="switchTab('draw')"><i class="fa-solid fa-pen"></i>Draw</div>
+            <div class="nav-item" onclick="switchTab('projects')"><i class="fa-regular fa-folder-open"></i>Projects</div>
+        </div>
+
+        <!-- Expanded Panel -->
+        <div class="panel" id="sidePanel">
+            <!-- Text Tab -->
+            <div id="tab-text" style="display: block;">
+                <div class="panel-header"><h2>Text</h2></div>
+                <div class="panel-content">
+                    <button class="add-text-btn" onclick="addText('heading')">Add a heading</button>
+                    <button class="add-text-btn" style="background: #e5e7eb; color: #374151;" onclick="addText('subheading')">Add a subheading</button>
+                    <button class="add-text-btn" style="background: #f3f4f6; color: #4b5563; font-weight: normal; font-size: 0.9rem;" onclick="addText('body')">Add a little bit of body text</button>
+                    <br><br>
+                    <h3 style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">Font Combinations</h3>
+                    <div class="font-style heading" onclick="addText('designer1')" style="font-family: 'Georgia', serif; color: #d97706;">Luxury Names</div>
+                    <div class="font-style subheading" onclick="addText('designer2')" style="font-family: 'Courier New', monospace;">Minimalist</div>
+                </div>
+            </div>
+
+            <!-- Elements Tab -->
+            <div id="tab-elements" style="display: none;">
+                <div class="panel-header"><h2>Elements</h2></div>
+                <div class="panel-content">
+                    <input type="text" class="search-box" placeholder="Search elements...">
+                    <h3 style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">Shapes</h3>
+                    <div class="grid-2">
+                        <div class="grid-item" onclick="addShape('rect')"><i class="fa-regular fa-square"></i>Square</div>
+                        <div class="grid-item" onclick="addShape('circle')"><i class="fa-regular fa-circle"></i>Circle</div>
+                        <div class="grid-item" onclick="addShape('triangle')"><i class="fa-solid fa-caret-up"></i>Triangle</div>
+                        <div class="grid-item" onclick="addShape('line')"><i class="fa-solid fa-minus"></i>Line</div>
+                    </div>
+                    <br>
+                    <h3 style="font-size: 0.9rem; color: #6b7280; margin-bottom: 10px;">Graphics & Stickers</h3>
+                    <div class="grid-2">
+                        <div class="grid-item" onclick="addIcon('fa-star')"><i class="fa-solid fa-star" style="color: gold;"></i>Star</div>
+                        <div class="grid-item" onclick="addIcon('fa-heart')"><i class="fa-solid fa-heart" style="color: red;"></i>Heart</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Uploads Tab -->
+            <div id="tab-uploads" style="display: none;">
+                <div class="panel-header"><h2>Uploads</h2></div>
+                <div class="panel-content">
+                    <button class="add-text-btn" onclick="document.getElementById('fileUpload').click()"><i class="fa-solid fa-upload"></i> Upload files</button>
+                    <input type="file" id="fileUpload" style="display: none;" accept="image/*" onchange="handleImageUpload(event)">
+                    <p style="font-size: 0.8rem; color: #9ca3af; text-align: center; margin-top: 20px;">Upload your own images or stickers to add to the card.</p>
+                </div>
+            </div>
+
+            <!-- Draw Tab -->
+            <div id="tab-draw" style="display: none;">
+                <div class="panel-header"><h2>Draw Tools</h2></div>
+                <div class="panel-content">
+                    <div class="grid-2">
+                        <div class="grid-item" onclick="toggleDrawing(true)"><i class="fa-solid fa-pen-nib"></i>Pen</div>
+                        <div class="grid-item" onclick="toggleDrawing(false)"><i class="fa-solid fa-arrow-pointer"></i>Select</div>
+                    </div>
+                    <br>
+                    <label style="font-size: 0.9rem; color: #4b5563;">Brush Color</label>
+                    <input type="color" id="brushColor" value="#8b3dff" style="width: 100%; height: 40px; margin-top: 5px; border: none; cursor: pointer;" onchange="updateBrush()">
+                    <br><br>
+                    <label style="font-size: 0.9rem; color: #4b5563;">Brush Size</label>
+                    <input type="range" id="brushSize" min="1" max="50" value="5" style="width: 100%; margin-top: 5px;" onchange="updateBrush()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Toolbar for Selected Objects -->
+        <div class="editor-toolbar" id="contextToolbar" style="display: none;">
+            <input type="color" id="objColor" onchange="changeObjColor(this.value)" style="width: 30px; height: 30px; border: none; padding: 0; cursor: pointer;" title="Color">
+            <div class="tool-divider"></div>
+            <button class="tool-btn" onclick="deleteSelected()" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+            <button class="tool-btn" onclick="duplicateSelected()" title="Duplicate"><i class="fa-regular fa-copy"></i></button>
+            <div class="tool-divider"></div>
+            <button class="tool-btn" onclick="bringForward()" title="Bring Forward"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-arrow-up" style="font-size: 0.6rem;"></i></button>
+            <button class="tool-btn" onclick="sendBackward()" title="Send Backward"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-arrow-down" style="font-size: 0.6rem;"></i></button>
+            <div class="tool-divider"></div>
+            <button class="tool-btn" onclick="lockObject()" title="Lock"><i class="fa-solid fa-lock"></i></button>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="canvas-container-wrapper" id="canvasWrapper">
+            <div class="canvas-shadow" id="canvasShadow">
+                <canvas id="c"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Action Bar -->
+    <div class="bottom-bar">
+        <div>Notes</div>
+        <div class="zoom-controls">
+            <span style="cursor: pointer;" onclick="zoom(-0.1)"><i class="fa-solid fa-minus"></i></span>
+            <input type="range" class="zoom-slider" min="0.1" max="3" step="0.1" value="1" id="zoomSlider" oninput="setZoom(this.value)">
+            <span style="cursor: pointer;" onclick="zoom(0.1)"><i class="fa-solid fa-plus"></i></span>
+            <span id="zoomLabel">100%</span>
+        </div>
+        <div>
+            <i class="fa-solid fa-border-all" style="margin-right: 10px;"></i> Pages 1/1
+        </div>
+    </div>
+
+    <script>
+        // Initialize Fabric.js Canvas
+        const canvas = new fabric.Canvas('c', {
+            preserveObjectStacking: true,
+            selection: true
+        });
+
+        // Global state
+        let currentZoom = 1;
+        let history = [];
+        let historyIndex = -1;
+
+        // Load background image from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        // We need to strip the cache buster query parameter from the URL if it exists in the query string itself, 
+        // wait, the image param is `image=/output/variant_X.jpg?t=123`. URLSearchParams gets the whole thing.
+        let imageUrl = urlParams.get('image'); 
+        if (!imageUrl) {
+            imageUrl = 'https://via.placeholder.com/800x1200?text=No+Image+Provided';
+        }
+
+        fabric.Image.fromURL(imageUrl, function(img) {
+            // Setup canvas size based on image
+            const targetWidth = 800; // default editor width
+            const scale = targetWidth / img.width;
+            
+            canvas.setWidth(targetWidth);
+            canvas.setHeight(img.height * scale);
+            
+            img.scale(scale);
+            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+            
+            saveHistory(); // Initial state
+        });
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            // Hide all tabs
+            document.getElementById('tab-text').style.display = 'none';
+            document.getElementById('tab-elements').style.display = 'none';
+            document.getElementById('tab-uploads').style.display = 'none';
+            document.getElementById('tab-draw').style.display = 'none';
+            
+            // Show selected tab
+            document.getElementById('tab-' + tabId).style.display = 'block';
+            
+            // Disable drawing mode if switching away from draw
+            if(tabId !== 'draw') toggleDrawing(false);
+        }
+
+        // --- Editing Tools --- //
+
+        function addText(type) {
+            let config = { left: canvas.width/2, top: canvas.height/2, originX: 'center', originY: 'center', fill: '#333333', fontFamily: 'Inter' };
+            let text = "Add text";
+            
+            if (type === 'heading') { text = "Heading"; config.fontSize = 60; config.fontWeight = 'bold'; }
+            if (type === 'subheading') { text = "Subheading"; config.fontSize = 40; config.fontWeight = '600'; }
+            if (type === 'body') { text = "Body text"; config.fontSize = 24; }
+            if (type === 'designer1') { text = "Luxury Font"; config.fontSize = 80; config.fontFamily = 'Georgia'; config.fill = '#d97706'; }
+            if (type === 'designer2') { text = "MINIMAL"; config.fontSize = 40; config.fontFamily = 'Courier New'; config.letterSpace = 100;}
+
+            const textObj = new fabric.IText(text, config);
+            canvas.add(textObj);
+            canvas.setActiveObject(textObj);
+            saveHistory();
+        }
+
+        function addShape(type) {
+            let obj;
+            const center = { left: canvas.width/2, top: canvas.height/2, originX: 'center', originY: 'center', fill: '#8b3dff' };
+            
+            if (type === 'rect') obj = new fabric.Rect({ ...center, width: 100, height: 100 });
+            if (type === 'circle') obj = new fabric.Circle({ ...center, radius: 50 });
+            if (type === 'triangle') obj = new fabric.Triangle({ ...center, width: 100, height: 100 });
+            if (type === 'line') obj = new fabric.Line([50, 100, 200, 100], { left: center.left, top: center.top, stroke: '#8b3dff', strokeWidth: 5 });
+
+            if (obj) {
+                canvas.add(obj);
+                canvas.setActiveObject(obj);
+                saveHistory();
+            }
+        }
+
+        function addIcon(iconClass) {
+            // Using a simple text representation for icons in this MVP
+            let char = '⭐';
+            if (iconClass === 'fa-heart') char = '❤️';
+            const textObj = new fabric.Text(char, { left: canvas.width/2, top: canvas.height/2, originX: 'center', originY: 'center', fontSize: 60 });
+            canvas.add(textObj);
+            canvas.setActiveObject(textObj);
+            saveHistory();
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(f) {
+                const data = f.target.result;
+                fabric.Image.fromURL(data, function(img) {
+                    img.scaleToWidth(200);
+                    img.set({ left: canvas.width/2, top: canvas.height/2, originX: 'center', originY: 'center' });
+                    canvas.add(img);
+                    canvas.setActiveObject(img);
+                    saveHistory();
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- Context Toolbar Actions --- //
+
+        canvas.on('selection:created', showToolbar);
+        canvas.on('selection:updated', showToolbar);
+        canvas.on('selection:cleared', hideToolbar);
+        canvas.on('object:modified', saveHistory);
+
+        function showToolbar(e) {
+            document.getElementById('contextToolbar').style.display = 'flex';
+            const activeObj = canvas.getActiveObject();
+            if (activeObj && activeObj.fill) {
+                document.getElementById('objColor').value = activeObj.fill;
+            }
+        }
+
+        function hideToolbar() {
+            document.getElementById('contextToolbar').style.display = 'none';
+        }
+
+        function changeObjColor(color) {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj) {
+                if (activeObj.type === 'line') activeObj.set('stroke', color);
+                else activeObj.set('fill', color);
+                canvas.renderAll();
+                saveHistory();
+            }
+        }
+
+        function deleteSelected() {
+            const activeObjects = canvas.getActiveObjects();
+            if (activeObjects.length) {
+                canvas.discardActiveObject();
+                activeObjects.forEach(function(object) {
+                    canvas.remove(object);
+                });
+                saveHistory();
+            }
+        }
+
+        function duplicateSelected() {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj) {
+                activeObj.clone(function(cloned) {
+                    canvas.discardActiveObject();
+                    cloned.set({ left: cloned.left + 20, top: cloned.top + 20, evented: true });
+                    if (cloned.type === 'activeSelection') {
+                        cloned.canvas = canvas;
+                        cloned.forEachObject(function(obj) { canvas.add(obj); });
+                        cloned.setCoords();
+                    } else {
+                        canvas.add(cloned);
+                    }
+                    canvas.setActiveObject(cloned);
+                    saveHistory();
+                });
+            }
+        }
+
+        function bringForward() {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj) { canvas.bringForward(activeObj); saveHistory(); }
+        }
+
+        function sendBackward() {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj) { canvas.sendBackwards(activeObj); saveHistory(); }
+        }
+
+        function lockObject() {
+            const activeObj = canvas.getActiveObject();
+            if (activeObj) {
+                const isLocked = activeObj.lockMovementX;
+                activeObj.set({
+                    lockMovementX: !isLocked, lockMovementY: !isLocked,
+                    lockRotation: !isLocked, lockScalingX: !isLocked, lockScalingY: !isLocked
+                });
+                canvas.renderAll();
+            }
+        }
+
+        // --- Drawing Tools --- //
+        
+        function toggleDrawing(enable) {
+            canvas.isDrawingMode = enable;
+            if (enable) updateBrush();
+        }
+
+        function updateBrush() {
+            if (!canvas.isDrawingMode) return;
+            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+            canvas.freeDrawingBrush.color = document.getElementById('brushColor').value;
+            canvas.freeDrawingBrush.width = parseInt(document.getElementById('brushSize').value, 10);
+        }
+
+        canvas.on('path:created', saveHistory);
+
+        // --- Zooming --- //
+
+        function zoom(amount) {
+            let val = parseFloat(document.getElementById('zoomSlider').value) + amount;
+            setZoom(val);
+        }
+
+        function setZoom(val) {
+            if (val < 0.1) val = 0.1;
+            if (val > 3) val = 3;
+            document.getElementById('zoomSlider').value = val;
+            document.getElementById('zoomLabel').innerText = Math.round(val * 100) + '%';
+            
+            document.getElementById('canvasShadow').style.transform = `scale(${val})`;
+        }
+
+        // --- History (Undo/Redo) --- //
+        
+        let isHistoryAction = false;
+        function saveHistory() {
+            if (isHistoryAction) return;
+            const json = canvas.toJSON();
+            history = history.slice(0, historyIndex + 1);
+            history.push(json);
+            historyIndex++;
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                isHistoryAction = true;
+                historyIndex--;
+                canvas.loadFromJSON(history[historyIndex], function() {
+                    canvas.renderAll();
+                    isHistoryAction = false;
+                });
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                isHistoryAction = true;
+                historyIndex++;
+                canvas.loadFromJSON(history[historyIndex], function() {
+                    canvas.renderAll();
+                    isHistoryAction = false;
+                });
+            }
+        }
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !canvas.getActiveObject()?.isEditing) {
+                    deleteSelected();
+                }
+            }
+            if (e.ctrlKey && e.key === 'z') { undo(); }
+            if (e.ctrlKey && e.key === 'y') { redo(); }
+        });
+
+        // Download output
+        function downloadImage() {
+            // Restore scale temporarily to 1 for high res export if needed, or just export canvas
+            const dataURL = canvas.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
+            const link = document.createElement('a');
+            link.download = 'custom_wedding_card.png';
+            link.href = dataURL;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Print output
+        function printImage() {
+            const dataURL = canvas.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write('<html><head><title>Print Poster</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;">');
+            printWindow.document.write('<img src="' + dataURL + '" style="max-width:100%;max-height:100%;" onload="window.print();window.close();"/>');
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+        }
+
+        // Resize Canvas
+        function resizeCanvas(width, height) {
+            canvas.setWidth(width);
+            canvas.setHeight(height);
+            // Re-center elements if desired, or just let them be
+            canvas.renderAll();
+            saveHistory();
+        }
+
+        // Custom Resize Dialog
+        function customResize() {
+            const width = prompt("Enter new width in pixels:", canvas.width);
+            if (width === null) return;
+            const height = prompt("Enter new height in pixels:", canvas.height);
+            if (height === null) return;
+            
+            if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
+                resizeCanvas(parseInt(width), parseInt(height));
+            } else {
+                alert("Please enter valid numbers for dimensions.");
+            }
+        }
+    </script>
+</body>
+</html>

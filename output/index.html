@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Builder Variants</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #4a4a4a;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card img {
+            width: 100%;
+            height: auto;
+            border-bottom: 2px solid #eaeaea;
+        }
+        .card-body {
+            padding: 15px;
+        }
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .card-desc {
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Generated Card Variants</h1>
+
+    <div class="container">
+        <div class="card">
+            <img src="variant_1.jpg" alt="Variant 1">
+            <div class="card-body">
+                <div class="card-title">Variant 1</div>
+                <div class="card-desc">Default layout plan as-is</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <img src="variant_2.jpg" alt="Variant 2">
+            <div class="card-body">
+                <div class="card-title">Variant 2</div>
+                <div class="card-desc">Different font pairing from the same occasion tag</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <img src="variant_3.jpg" alt="Variant 3">
+            <div class="card-body">
+                <div class="card-title">Variant 3</div>
+                <div class="card-desc">Different sticker set from the same occasion tag</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <img src="variant_4.jpg" alt="Variant 4">
+            <div class="card-body">
+                <div class="card-title">Variant 4</div>
+                <div class="card-desc">Adjusted color palette for text</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <img src="variant_5.jpg" alt="Variant 5">
+            <div class="card-body">
+                <div class="card-title">Variant 5</div>
+                <div class="card-desc">Alternate layout — swap headline and sub-text zones</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
